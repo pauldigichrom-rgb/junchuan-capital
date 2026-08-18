@@ -70,7 +70,7 @@ input::placeholder{color:rgba(255,255,255,.3)}
   rips.forEach(r=>{ctx.strokeStyle="rgba(220,228,246,"+r.a+")";ctx.lineWidth=.8;
    ctx.beginPath();ctx.ellipse(r.x,r.y,r.r*2.2,r.r*.7,0,0,7);ctx.stroke();r.r+=.7;r.a-=.02});
   for(let i=rips.length-1;i>=0;i--)if(rips[i].a<=0)rips.splice(i,1);
-  if(!reduced)requestAnimationFrame(frame)
+  if(!reduced&&!window.__unlocked)requestAnimationFrame(frame)
  }
  frame()
 })();
@@ -93,10 +93,9 @@ async function tryPin(pin,silent){
     const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv},key,ct);
     const ds=new DecompressionStream("gzip");
     const html=await new Response(new Response(pt).body.pipeThrough(ds)).text();
-    const fr=document.createElement("iframe");
-    fr.style.cssText="position:fixed;inset:0;width:100%;height:100%;border:0";
-    document.body.textContent="";document.body.style.display="block";document.body.appendChild(fr);
-    fr.srcdoc=html;
+    /* 整頁替換而非iframe:錨點路由才是同文件導航,選單不會把門頁重載進框架 */
+    window.__unlocked=1;
+    document.open();document.write(html);document.close();
   }catch(e){
     if(!silent){$("msg").textContent="通行碼不對";$("msg").className="msg";
       const i=$("pin");i.value="";i.classList.remove("shake");void i.offsetWidth;i.classList.add("shake");i.focus();}
