@@ -77,10 +77,16 @@ input::placeholder{color:rgba(255,255,255,.3)}
 </script>
 <script>
 const $=id=>document.getElementById(id);
+let encP=null;
+function loadEnc(){/* 頁面一開就背景預載加密包,打完通行碼時多半已在本地 */
+  if(!encP)encP=fetch("desk.enc",{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(a=>new Uint8Array(a)).catch(e=>{encP=null;throw e});
+  return encP;
+}
+loadEnc();
 async function tryPin(pin,silent){
   try{
     $("msg").textContent="解鎖中…";$("msg").className="msg ok";
-    const b=Uint8Array.from(atob(await (await fetch("desk.enc",{cache:"no-store"})).text()),c=>c.charCodeAt(0));
+    const b=await loadEnc();
     const salt=b.slice(0,16),iv=b.slice(16,28),ct=b.slice(28);
     const km=await crypto.subtle.importKey("raw",new TextEncoder().encode(pin),"PBKDF2",false,["deriveKey"]);
     const key=await crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:200000,hash:"SHA-256"},km,{name:"AES-GCM",length:256},false,["decrypt"]);

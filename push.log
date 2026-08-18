@@ -1,0 +1,3 @@
+fatal: User canceled device code authentication
+fatal: could not read Username for 'https://github.com': terminal prompts disabled
+push exit=128
