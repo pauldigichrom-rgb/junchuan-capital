@@ -52,15 +52,20 @@ input::placeholder{color:rgba(255,255,255,.3)}
 <div class="msg" id="msg"></div></div>
 <script>
 (function(){
+ /* 門頁天氣=行情:漲→煙花,跌→雨。方向讀公開的 mood.json(只含漲跌方向,公開資訊) */
  const cv=document.getElementById("rain"),ctx=cv.getContext("2d");
  const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
- let W,H,drops,rips;
+ let W,H,drops,rips,rockets,parts,mode="rain";
+ const FXC=["241,189,87","255,92,99","255,196,140","250,240,220"];
  function reset(){W=cv.width=innerWidth;H=cv.height=innerHeight;
   drops=Array.from({length:Math.min(150,Math.floor(W/10))},()=>({x:Math.random()*W,y:Math.random()*H,
-   l:9+Math.random()*17,v:6.5+Math.random()*9,w:.4+Math.random()*.9,o:.16+Math.random()*.24}));rips=[]}
+   l:9+Math.random()*17,v:6.5+Math.random()*9,w:.4+Math.random()*.9,o:.16+Math.random()*.24}));rips=[];rockets=[];parts=[]}
  reset();addEventListener("resize",reset);
- function frame(){
-  ctx.clearRect(0,0,W,H);
+ function setMood(dir){const nm=dir==="up"?"fx":"rain";if(nm!==mode){mode=nm;rockets=[];parts=[];
+  if(nm==="fx")rockets.push({x:W*.3,y:H*.7,vy:-7,ty:H*.3,c:FXC[0]},{x:W*.68,y:H*.9,vy:-6.5,ty:H*.38,c:FXC[1]})}}
+ if(location.search.indexOf("fx=1")>=0)setMood("up");
+ else fetch("mood.json",{cache:"no-store"}).then(r=>r.json()).then(m=>{if(m&&m.dir==="up")setMood("up")}).catch(()=>{});
+ function rainFrame(){
   drops.forEach(d=>{
    ctx.strokeStyle="rgba(220,228,246,"+d.o+")";
    ctx.lineWidth=d.w;ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(d.x-d.l*.16,d.y+d.l);ctx.stroke();
@@ -70,6 +75,34 @@ input::placeholder{color:rgba(255,255,255,.3)}
   rips.forEach(r=>{ctx.strokeStyle="rgba(220,228,246,"+r.a+")";ctx.lineWidth=.8;
    ctx.beginPath();ctx.ellipse(r.x,r.y,r.r*2.2,r.r*.7,0,0,7);ctx.stroke();r.r+=.7;r.a-=.02});
   for(let i=rips.length-1;i>=0;i--)if(rips[i].a<=0)rips.splice(i,1);
+ }
+ function fxFrame(){
+  if(rockets.length<3&&Math.random()<.032)
+   rockets.push({x:W*(.1+Math.random()*.8),y:H+6,vy:-(5.5+Math.random()*3.2),ty:H*(.16+Math.random()*.38),c:FXC[Math.floor(Math.random()*FXC.length)]});
+  for(let i=rockets.length-1;i>=0;i--){const k=rockets[i];
+   ctx.strokeStyle="rgba("+k.c+",.85)";ctx.lineWidth=1.4;
+   ctx.beginPath();ctx.moveTo(k.x,k.y);ctx.lineTo(k.x,k.y+11);ctx.stroke();
+   k.y+=k.vy;
+   if(k.y<=k.ty){const n=55+Math.floor(Math.random()*32);
+    for(let j=0;j<n;j++){const a=Math.PI*2*j/n+Math.random()*.25,s=1.2+Math.random()*3.6;
+     parts.push({x:k.x,y:k.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c:Math.random()<.72?k.c:FXC[Math.floor(Math.random()*FXC.length)]})}
+    rockets.splice(i,1)}
+  }
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];
+   ctx.fillStyle="rgba("+p.c+","+(p.life*.28)+")";
+   ctx.beginPath();ctx.arc(p.x,p.y,3.4,0,7);ctx.fill();
+   ctx.fillStyle="rgba("+p.c+","+(p.life*.95)+")";
+   ctx.beginPath();ctx.arc(p.x,p.y,1.7,0,7);ctx.fill();
+   p.x+=p.vx;p.y+=p.vy;p.vy+=.03;p.vx*=.985;p.life-=.009;
+   if(p.life<=0)parts.splice(i,1)}
+ }
+ function frame(){
+  if(mode==="fx"){
+   ctx.globalCompositeOperation="destination-out";
+   ctx.fillStyle="rgba(0,0,0,.16)";ctx.fillRect(0,0,W,H);
+   ctx.globalCompositeOperation="source-over";
+   fxFrame()
+  }else{ctx.clearRect(0,0,W,H);rainFrame()}
   if(!reduced&&!window.__unlocked)requestAnimationFrame(frame)
  }
  frame()
