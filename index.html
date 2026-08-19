@@ -95,6 +95,7 @@ async function tryPin(pin,silent){
     const html=await new Response(new Response(pt).body.pipeThrough(ds)).text();
     /* 整頁替換而非iframe:錨點路由才是同文件導航,選單不會把門頁重載進框架 */
     window.__unlocked=1;
+    window.__pin=pin;try{window.name="sc:"+pin}catch(e){}/* 供站內解密盤中現價live.enc;window.name跨文件替換仍存活 */
     document.open();document.write(html);document.close();
   }catch(e){
     if(!silent){$("msg").textContent="通行碼不對";$("msg").className="msg";
