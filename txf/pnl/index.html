@@ -45,9 +45,13 @@ header .wrap{padding-block:24px 20px;display:flex;flex-wrap:wrap;gap:10px 20px;
 section{border-bottom:1px solid var(--hair)}
 section>.wrap{padding-block:26px}
 .panel{display:grid;background:var(--raise);border:1px solid var(--rule);
-  grid-template-columns:repeat(auto-fit,minmax(142px,1fr))}
-.panel label{padding:11px 13px 12px;display:block;
+  grid-template-columns:repeat(auto-fit,minmax(178px,1fr))}
+.panel label{padding:11px 13px 12px;display:block;min-width:0;
   border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.panel label.wide{grid-column:span 2}
+@media(max-width:640px){.panel{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .panel label.wide{grid-column:1/-1}
+  .panel select,.panel input{font-size:.88rem}}
 .panel span{display:block;font-size:.72rem;color:var(--muted);margin-bottom:5px}
 .panel select,.panel input{width:100%;font:inherit;font-family:var(--mono);font-size:.95rem;
   background:transparent;color:var(--ink);border:0;border-bottom:1px solid var(--hair);
@@ -73,6 +77,8 @@ section>.wrap{padding-block:26px}
 .tiles dd small{display:block;font-size:.71rem;font-weight:400;color:var(--muted);
   margin-top:4px;font-family:var(--sans);line-height:1.5}
 .up{color:var(--rise)} .dn{color:var(--fall)}
+.tiles dd.up,.pos dd.up,td.up,th.up{color:var(--rise)}
+.tiles dd.dn,.pos dd.dn,td.dn,th.dn{color:var(--fall)}
 figure{margin:20px 0 0}
 .chart{background:var(--raise);border:1px solid var(--rule);padding:14px 12px 8px}
 .chart svg{display:block;width:100%;height:auto}
@@ -110,20 +116,20 @@ footer p{margin:0;font-size:.78rem;color:var(--muted);line-height:1.8}
     <label><span>起始日</span><input id="d0" type="date"></label>
     <label><span>結束日</span><input id="d1" type="date"></label>
     <label><span>本金（元）</span><input id="eq" type="number" step="100000" value="1000000"></label>
-    <label><span>契約</span>
-      <select id="ct"><option value="10">微台（10 元／點）</option>
-        <option value="50">小台（50 元／點）</option>
-        <option value="200">大台（200 元／點）</option></select></label>
+    <label class="wide"><span>契約</span>
+      <select id="ct"><option value="10">微台（10 元/點）</option>
+        <option value="50">小台（50 元/點）</option>
+        <option value="200">大台（200 元/點）</option></select></label>
     <label><span>均線上　槓桿</span><input id="hi" type="number" step="0.5" min="0" max="12" value="4"></label>
     <label><span>均線下　槓桿</span><input id="lo" type="number" step="0.5" min="0" max="12" value="2"></label>
-    <label><span>用哪條均線</span>
+    <label class="wide"><span>用哪條均線</span>
       <select id="ma"><option value="20">月線（20 日）</option>
         <option value="60">季線（60 日）</option>
         <option value="120">半年線（120 日）</option>
         <option value="240">年線（240 日）</option></select></label>
-    <label><span>今天的指數</span><input id="px" type="number" step="1" placeholder="留空＝最新收盤"></label>
-    <label><span>轉倉日校槓桿</span>
-      <select id="rb"><option value="1">開（穿線＋每月轉倉）</option>
+    <label class="wide"><span>今天的指數</span><input id="px" type="number" step="1" placeholder="留空就用最新收盤"></label>
+    <label class="wide"><span>轉倉日校槓桿</span>
+      <select id="rb"><option value="1">開（穿線＋轉倉日校回）</option>
         <option value="0">關（只在穿線時調）</option></select></label>
   </div>
   <h2 style="margin-top:26px">今天該怎麼下</h2>
