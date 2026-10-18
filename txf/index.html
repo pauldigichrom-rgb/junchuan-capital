@@ -139,6 +139,11 @@ footer p{margin:0;font-size:.78rem;color:var(--muted);line-height:1.8}
         <option value="2007">2007 起・含海嘯</option>
         <option value="1999">1999 起・含兩次崩盤</option></select></label>
     <label><span>今天的指數</span><input id="px" type="number" step="1"></label>
+    <label><span>轉倉成本</span>
+      <select id="rc"><option value="spread">價差單（手續費兩筆、滑價合計 1 點、期交稅兩筆）</option>
+        <option value="two">分兩筆下單（平舊、建新各一筆）</option>
+        <option value="none">不計（舊版算法）</option></select></label>
+    <label><span>閒置現金年息（%）</span><input id="cr" type="number" step="0.1" min="0" max="10" value="0"></label>
   </div>
 
   <h2 style="margin-top:26px">今天該怎麼下</h2>
@@ -203,6 +208,7 @@ const MAC = {};
 const ma = k => MAC[k] || (MAC[k]=mavg(k));
 
 function run(a,b,hi,lo,k,pv,eq0){
+  const CY=Math.pow(1+Math.max(+$('cr').value||0,0)/100,1/244)-1, RC=$('rc').value;
   const M=ma(k), fee=CT[pv].fee, R=rolls();
   let above=P.ix[a]>=M[a], lots=Math.max(Math.floor((above?hi:lo)*eq0/(pv*P.ix[a])),0);
   let eq=eq0, pend=null, peak=1, mdd=0, sw=0, cost=0, lmin=1e9, lmax=0, useMax=0;
@@ -214,10 +220,13 @@ function run(a,b,hi,lo,k,pv,eq0){
       const c=df*(fee+SPREAD*pv)+df*pv*P.ix[i]*TAX; eq-=c; cost+=c; lots=pend; pend=null;
     }
     eq += lots*pv*(P.ac[i]-P.ao[i]);
-    if(lots>0 && R.has(P.d[i])){   // 轉倉日收盤：平舊月、建次月，每口兩筆成交
-      const c=2*lots*(fee+SPREAD*pv)+2*lots*pv*P.ix[i]*TAX; eq-=c; cost+=c; }
+    if(lots>0 && RC!=='none' && R.has(P.d[i])){   // 轉倉日收盤：平舊月、建次月
+      // 價差單：一張委託同時成交兩腳，手續費與期交稅仍算兩筆，滑價只吃一次（合計 1 點）
+      const c = RC==='spread' ? 2*lots*fee + lots*1*pv + 2*lots*pv*P.ix[i]*TAX
+                              : 2*lots*(fee+SPREAD*pv) + 2*lots*pv*P.ix[i]*TAX;
+      eq-=c; cost+=c; }
     const im=lots*pv*P.ix[i]*IM_R;
-    eq += Math.max(eq-im,0)*CASHY;
+    eq += Math.max(eq-im,0)*CY;
     if(lots>0 && eq<=lots*pv*P.ix[i]*MM_R){
       curve.push({d:P.d[i],v:0});
       return {dead:P.d[i],curve,sw,cost,lmin,lmax,useMax,mult:0,mdd:-100};
@@ -443,7 +452,7 @@ function render(){
     +'2000 與 2008 當年的保證金成數比現在高得多，真的在那時候操作，被追繳與被平倉的機會都比這裡算出來的大。');
   bits.push('<strong>全部本金都假設在期貨保證金帳戶裡。</strong>期交所的權益數只認期貨帳戶的錢，'
     +'放在銀行的部分不算，追繳時系統不會等你轉帳。真的把大部分現金擺在銀行，追繳點會比這裡算的早非常多。');
-  bits.push('已計入：每月轉倉平舊建新的兩筆成本（手續費、滑價、期交稅）。閒置現金不計利息（期貨保證金帳戶通常沒有利息）。均線用起點前的加權指數暖機。未計入：盤中追繳（只在日收盤檢查）、夜盤、大單的市場衝擊。滑價以買賣價差 2 點計，跳空已反映在隔夜損益裡。');
+  bits.push('已計入：每月轉倉成本（依上方「轉倉成本」選項）。閒置現金依上方年息欄位計息，預設 0%（期貨保證金帳戶通常沒有利息）。均線用起點前的加權指數暖機。未計入：盤中追繳（只在日收盤檢查）、夜盤、大單的市場衝擊。滑價以買賣價差 2 點計，跳空已反映在隔夜損益裡。');
   $('caveat').innerHTML='<b>這組數字的適用範圍</b>'+bits.join('　');
 
   $('foot').textContent='資料：加權指數日收盤（FinMind）與台指期近月合約真實開收盤，向後調整為連續序列（含實際轉倉損益）。'+
@@ -454,7 +463,7 @@ function render(){
     '本頁只做計算，不構成投資建議，也不會下任何單。';
 }
 
-['ct','eq','hi','lo','ma','pd','px'].forEach(id=>{
+['ct','eq','hi','lo','ma','pd','px','rc','cr'].forEach(id=>{
   $(id).addEventListener('input',render); $(id).addEventListener('change',render);
 });
 $('px').value = P.ix[N-1].toFixed(2);
