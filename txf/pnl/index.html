@@ -136,6 +136,9 @@ footer p{margin:0;font-size:.78rem;color:var(--muted);line-height:1.8}
         <option value="two">分兩筆下單（平舊、建新各一筆）</option>
         <option value="none">不計（舊版算法）</option></select></label>
     <label><span>閒置現金年息（%）</span><input id="cr" type="number" step="0.1" min="0" max="10" value="0"></label>
+    <label><span>加速檔：同時站上季線　槓桿</span><input id="h2" type="number" step="0.5" min="0" max="12" value="0" title="0＝不用三段。填 5 就是 5/4/2：同時站上上面選的均線與 60 日季線時用這個槓桿"></label>
+    <label><span>收盤跌幅煞車（%）</span><input id="bp" type="number" step="0.5" min="0" max="20" value="0" title="0＝不用。加權指數單日收盤跌幅達這個數字，之後幾天固定用「均線下槓桿」"></label>
+    <label><span>煞車天數</span><input id="bd" type="number" step="1" min="1" max="20" value="3"></label>
   </div>
   <h2 style="margin-top:26px">今天該怎麼下</h2>
   <dl class="pos" id="pos"></dl>
@@ -253,14 +256,26 @@ function project(px, mv, hi, lo, pv, eq0){
 
 function run(a,b,hi,lo,k,pv,eq0,rebal){
   const CY=Math.pow(1+Math.max(+$('cr').value||0,0)/100,1/244)-1, RC=$('rc').value;
-  const M=ma(k), fee=CT[pv].fee, R=rolls();
-  let above=P.ix[a]>=M[a];
-  let lots=Math.max(Math.floor((above?hi:lo)*eq0/(pv*P.ix[a])),0);
+  const M=ma(k), fee=CT[pv].fee, R=rolls(), M60=ma(60);
+  // 2026-10-20：三段變速（加速檔）與收盤跌幅煞車。h2=0、bp=0 時與舊版完全相同
+  const H2=Math.max(+$('h2').value||0,0), BP=Math.max(+$('bp').value||0,0), BD=Math.max(Math.floor(+$('bd').value||3),1);
+  const mn=k===20?'月線':k===60?'季線':k===120?'半年線':'年線';
+  let left=0;
+  const tgtOf=i=>{
+    if(BP>0 && i>0 && P.ix[i]/P.ix[i-1]-1 <= -BP/100) left=BD;
+    if(left>0) return {t:lo, w:'收盤跌 '+((1-P.ix[i]/P.ix[i-1])*100).toFixed(1)+'% 後煞車（剩 '+left+' 天）'};
+    const up=P.ix[i]>=M[i];
+    if(up && H2>0 && P.ix[i]>=M60[i]) return {t:H2, w:'站上'+mn+'與季線'};
+    return up ? {t:hi, w:'站上'+mn} : {t:lo, w:'跌破'+mn};
+  };
+  let cur=tgtOf(a);
+  let lots=Math.max(Math.floor(cur.t*eq0/(pv*P.ix[a])),0);
   let eq=eq0, pend=null, peak=eq0, mdd=0, mddAmt=0, cost=0;
   const curve=[{d:P.d[a],eq:eq0,lots:lots}], adjs=[];
   adjs.push({d:P.d[a],why:'建倉',ix:P.ix[a],from:0,to:lots,c:0,eq:eq0});
   let ddFrom=P.d[a], ddTo=P.d[a], pkAt=P.d[a], pkIdx=0;
   for(let i=a+1;i<=b;i++){
+    if(left>0) left--;
     eq += lots*pv*(P.ao[i]-P.ac[i-1]);
     if(pend!==null){
       const df=Math.abs(pend.n-lots);
@@ -280,10 +295,11 @@ function run(a,b,hi,lo,k,pv,eq0,rebal){
       curve.push({d:P.d[i],eq:0,lots:0});
       return {dead:P.d[i],curve,adjs,cost,mdd:-100,mddAmt:-eq0,ddFrom,ddTo,eqEnd:0};
     }
-    const na=P.ix[i]>=M[i], tgt=na?hi:lo;
+    const nx=tgtOf(i), tgt=nx.t;
     let want=null, why=null;
-    if(na!==above){ above=na; want=Math.max(Math.floor(tgt*eq/(pv*P.ix[i])),0); why=na?'站上'+(k===20?'月線':k===60?'季線':k===120?'半年線':'年線'):'跌破'+(k===20?'月線':k===60?'季線':k===120?'半年線':'年線'); }
+    if(tgt!==cur.t){ want=Math.max(Math.floor(tgt*eq/(pv*P.ix[i])),0); why=nx.w; }
     else if(rebal && R.has(P.d[i])){ const w=Math.max(Math.floor(tgt*eq/(pv*P.ix[i])),0); if(w!==lots){ want=w; why='轉倉校槓桿'; } }
+    cur=nx;
     if(want!==null) pend={n:want,why:why};
     if(eq>peak){ peak=eq; pkAt=P.d[i]; pkIdx=curve.length; }
     const dd=eq/peak-1;
@@ -354,10 +370,16 @@ function render(){
   const wan=v=>(v/10000).toFixed(1).replace(/\.0$/,'')+' 萬';
   const MA=ma(k), mv=MA[N-1], px=+$('px').value||P.ix[N-1];
   const mname=k===20?'月線':k===60?'季線':k===120?'半年線':'年線';
-  const above=px>=mv, tgt=above?hi:lo;
+  const above=px>=mv;
+  const H2n=Math.max(+$('h2').value||0,0), BPn=Math.max(+$('bp').value||0,0), BDn=Math.max(Math.floor(+$('bd').value||3),1);
+  const m60=ma(60)[N-1];
+  let brakeOn=false;
+  if(BPn>0) for(let t=Math.max(1,N-BDn);t<N;t++) if(P.ix[t]/P.ix[t-1]-1 <= -BPn/100) brakeOn=true;
+  if(BPn>0 && px!==P.ix[N-1] && px/P.ix[N-1]-1 <= -BPn/100) brakeOn=true;
+  const tgt = brakeOn ? lo : (above ? ((H2n>0 && px>=m60) ? H2n : hi) : lo);
   const cv=pv*px, lots=Math.max(Math.floor(tgt*eq0/cv),0);
   const im=lots*CT[pv].im, free=eq0-im;
-  const pj=project(px,mv,hi,lo,pv,eq0);
+  const pj=project(px,mv,above?tgt:hi,lo,pv,eq0);   // 加速檔或煞車中，以目前目標槓桿推算追繳點
   let callTxt, callSub, swSub;
   if(lots<=0){ callTxt='—'; callSub='現在沒有部位'; }
   else if(pj.before){
@@ -389,7 +411,7 @@ function render(){
    <div class="hero"><dt>現在的狀態</dt><dd><span class="pill ${above?'up':'dn'}">${above?'站上':'跌破'}${mname}</span>
      <small>指數 ${px.toFixed(0)}　均線 ${mv.toFixed(0)}　差 ${(px/mv-1>=0?'+':'')}${((px/mv-1)*100).toFixed(2)}%</small></dd></div>
    <div class="hero"><dt>該持口數（${CT[pv].n}）</dt><dd>${lots} 口
-     <small>部位 ${wan(lots*cv)}＝權益 ${wan(eq0)} 的 ${(lots*cv/eq0).toFixed(2)} 倍（目標 ${tgt} 倍）</small></dd></div>
+     <small>部位 ${wan(lots*cv)}＝權益 ${wan(eq0)} 的 ${(lots*cv/eq0).toFixed(2)} 倍（目標 ${tgt} 倍${brakeOn?'，煞車中':''}${H2n>0?'，季線 '+m60.toFixed(0):''}）</small></dd></div>
    <div><dt>原始保證金</dt><dd>${money(im)}<small>佔本金 ${(im/eq0*100).toFixed(0)}%</small></dd></div>
    <div><dt>可動用現金</dt><dd>${money(free)}<small>佔本金 ${(free/eq0*100).toFixed(0)}%。這筆錢要放在期貨保證金帳戶，放銀行不計入權益。</small></dd></div>
    <div><dt>追繳點</dt><dd>${callTxt}<small>${callSub}</small></dd></div>
@@ -489,7 +511,7 @@ function render(){
     +'本頁只做計算，不構成投資建議，也不會下任何單。';
 }
 
-['d0','d1','eq','ct','hi','lo','ma','rb','px','rc','cr'].forEach(id=>{
+['d0','d1','eq','ct','hi','lo','ma','rb','px','rc','cr','h2','bp','bd'].forEach(id=>{
   $(id).addEventListener('input',render); $(id).addEventListener('change',render);
 });
 $('d0').min=$('d1').min=dstr(P.d[0]);
